@@ -141,19 +141,27 @@ const RULES = [
 ];
 const NUM = /N[º°O.]{0,2} ?([0-9][0-9.\/-]{1,20})/;
 
+// número do documento: lido só da linha do título
+function numFrom(r, L){
+  let num = '';
+  if(r.key){ const m = L.match(r.key); if(m) num = m[1]+(r.label.startsWith('Ordem')?'OB':'NE')+m[2]; }
+  if(!num){ const m = L.match(NUM); if(m) num = m[1].replace(/[.\-\/]+$/,''); }
+  if(r.label==='Termo Aditivo'){ // "PRIMEIRO TERMO ADITIVO" → nº = 1º, 2º...
+    const m = L.match(new RegExp(ORD+' TERMO ADITIVO'));
+    const ords = ['PRIMEIRO','SEGUNDO','TERCEIRO','QUARTO','QUINTO','SEXTO','SETIMO','OITAVO','NONO','DECIMO','DECIMO PRIMEIRO','DECIMO SEGUNDO'];
+    if(m){ let i = ords.indexOf(m[1]); if(m[1]==='UNDECIMO') i=10; if(m[1]==='DUODECIMO') i=11; if(i>=0) num = (i+1)+'º'; }
+  }
+  return num;
+}
+// classifica pelo título: o termo só vale se estiver no INÍCIO de uma linha do cabeçalho
+// (tolerando até TITLE_LEAD caracteres de sujeira do OCR). Menções no meio do texto são ignoradas.
+const TITLE_LEAD = 8, TITLE_LINES = 10;
 function classify(headerText){
-  const N = norm(headerText);
-  for(const r of RULES){
-    if(r.re.test(N)){
-      let num = '';
-      if(r.key){ const m = N.match(r.key); if(m) num = m[1]+(r.label.startsWith('Ordem')?'OB':'NE')+m[2]; }
-      if(!num){ const m = N.match(NUM); if(m) num = m[1].replace(/[.\-\/]+$/,''); }
-      if(r.label==='Termo Aditivo'){ // "PRIMEIRO TERMO ADITIVO" → nº = 1º, 2º...
-        const m = N.match(new RegExp(ORD+' TERMO ADITIVO'));
-        const ords = ['PRIMEIRO','SEGUNDO','TERCEIRO','QUARTO','QUINTO','SEXTO','SETIMO','OITAVO','NONO','DECIMO','DECIMO PRIMEIRO','DECIMO SEGUNDO'];
-        if(m){ let i = ords.indexOf(m[1]); if(m[1]==='UNDECIMO') i=10; if(m[1]==='DUODECIMO') i=11; if(i>=0) num = (i+1)+'º'; }
-      }
-      return {...r, num};
+  const lines = headerText.split(/\n/).map(s=>norm(s).trim()).filter(s=>s.length>=3).slice(0, TITLE_LINES);
+  for(const L of lines){
+    for(const r of RULES){
+      const m = L.match(r.re);
+      if(m && m.index <= TITLE_LEAD) return {...r, num: numFrom(r, L)};
     }
   }
   return null;
@@ -251,7 +259,7 @@ async function run(){
       } else nText++;
       page.cleanup();
       const lines = firstLines(info.header);
-      const hit = classify(lines.join('\n') || info.header);
+      const hit = classify(info.header);
       pages.push({vol:v, volName:f.file.name, pIn:p, g:done+1, source, conf:Math.round(conf), lines, hit, full:info.full});
       done++;
       const el = (performance.now()-t0)/1000, avg = el/done;
