@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa Doc — Prova Técnica</title>
+<style>
+:root{
+  --paper:#f3f6f7; --sheet:#fff; --ink:#132a33; --muted:#5b707a; --line:#d6e0e4;
+  --sea:#0f6e78; --sea-soft:#e1f0f1; --warn:#a86a06; --warn-soft:#fbf1dc; --ok:#2f7a45; --ok-soft:#e3f2e7;
+  --font:"Segoe UI", system-ui, -apple-system, Roboto, sans-serif; --mono:ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --paper:#0d1a20; --sheet:#132730; --ink:#e4eef1; --muted:#93a9b2; --line:#24404b;
+  --sea:#4fb7c0; --sea-soft:#163b42; --warn:#e3a640; --warn-soft:#3a2d12; --ok:#6cc488; --ok-soft:#173326; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--font);padding:28px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{margin:0;font-size:26px}
+.sub{margin:2px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+h2{margin:0;font-size:17px}
+.drop{border:1.5px dashed var(--sea);background:var(--sea-soft);border-radius:10px;padding:18px;text-align:center;cursor:pointer}
+.drop.over{filter:brightness(.95)}
+.files{display:flex;flex-direction:column;gap:6px}
+.file{display:flex;justify-content:space-between;gap:10px;background:var(--paper);border-radius:8px;padding:8px 12px;font-size:14px}
+.file span:last-child{font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.opts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px}
+.opts label{display:flex;gap:6px;align-items:center}
+.opts input{accent-color:var(--sea)}
+button{font:inherit;cursor:pointer;border-radius:9px}
+.go{background:var(--sea);color:var(--sheet);border:0;padding:12px 20px;font-weight:600;align-self:flex-start}
+.go:disabled{opacity:.5;cursor:not-allowed}
+.btn{background:var(--sheet);color:var(--ink);border:1px solid var(--line);padding:9px 14px}
+.btn.primary{background:var(--sea);border-color:var(--sea);color:var(--sheet)}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar>div{height:100%;width:0;background:var(--sea)}
+.mono{font-family:var(--mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13.5px;color:var(--muted)}
+.stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:720px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--paper)}
+td.n{font-family:var(--mono);white-space:nowrap}
+.act{font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.ler{background:var(--sea-soft);color:var(--sea)} .resumir{background:var(--ok-soft);color:var(--ok)} .ignorar{background:var(--line);color:var(--muted)} .revisar{background:var(--warn-soft);color:var(--warn)}
+details{font-size:13px} summary{cursor:pointer;color:var(--muted)}
+pre{white-space:pre-wrap;font-family:var(--mono);font-size:12px;background:var(--paper);padding:10px;border-radius:8px;max-height:320px;overflow:auto}
+.note{font-size:13px;color:var(--muted);margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Mapa Doc · prova técnica</h1>
+    <p class="sub">Índice de volumes de processo em PDF. Tudo roda no seu navegador; os arquivos não são enviados a lugar nenhum.</p>
+  </header>
+
+  <section class="card" id="setup">
+    <h2>1. Volumes do processo</h2>
+    <div class="drop" id="drop">Arraste PDFs aqui ou clique para escolher</div>
+    <input type="file" id="fileInput" accept="application/pdf" multiple hidden>
+    <div class="files" id="files"></div>
+    <h2>2. Opções</h2>
+    <div class="opts">
+      <label><input type="checkbox" id="optFull"> OCR da página inteira nas digitalizadas (mais lento; preenche paginas/*.txt)</label>
+      <label>Processo: <input type="text" id="optProc" placeholder="ex.: 46069.001262/2006-00" style="font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--sheet);color:var(--ink)"></label>
+    </div>
+    <button class="go" id="goBtn" disabled>Mapear documento</button>
+    <p class="note">Primeira execução baixa o modelo de OCR em português (~1,4 MB) e fica em cache.</p>
+  </section>
+
+  <section class="card" id="running" hidden>
+    <h2 id="runTitle">Mapeando…</h2>
+    <div class="mono" id="progLine">Preparando…</div>
+    <div class="bar"><div id="bar"></div></div>
+    <div class="stats">
+      <span><b id="sPct">0%</b></span>
+      <span>com texto: <b id="sText">0</b></span>
+      <span>OCR: <b id="sOcr">0</b></span>
+      <span>média: <b id="sAvg">–</b> s/pág</span>
+      <span>restante: <b id="sEta">–</b></span>
+    </div>
+    <p class="note">Mantenha esta aba aberta.</p>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <h2 id="doneTitle"></h2>
+    <div class="stats" id="doneStats"></div>
+    <div class="actions">
+      <button class="btn primary" id="dlZip">Baixar pacote (.zip)</button>
+      <button class="btn" id="dlXlsx">Baixar indice.xlsx</button>
+      <button class="btn" id="dlMd">Baixar indice.md</button>
+      <button class="btn" id="again">Mapear outro</button>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Nº</th><th>Documento</th><th>Assunto (cabeçalho)</th><th>Pág.</th><th>Categoria</th><th>Para a IA</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+    <details><summary>Ver indice.md</summary><pre id="mdPreview"></pre></details>
+    <details><summary>Ver leitura bruta por página (diagnóstico)</summary><pre id="rawPreview"></pre></details>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ================== REGRAS (portadas da skill indexador-pdf-processo) ================== */
+const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[ \t]+/g,' ');
+const ORD = '(PRIMEIRO|SEGUNDO|TERCEIRO|QUARTO|QUINTO|SEXTO|SETIMO|OITAVO|NONO|DECIMO( PRIMEIRO| SEGUNDO)?|UNDECIMO|DUODECIMO)';
+// ordem importa: o primeiro padrão que bater define o documento
+const RULES = [
+  {cat:'TERMO ADITIVO',       label:'Termo Aditivo',        ia:'ler',     re:new RegExp(ORD+'? ?TERMO ADITIVO|\\bT\\.?A\\.? N')},
+  {cat:'EXECUÇÃO FINANCEIRA', label:'Nota de Empenho',      ia:'resumir', re:/NOTA DE EMPENHO|\b(19|20)\d{2} ?NE ?\d{6}\b/, key:/\b((?:19|20)\d{2}) ?NE ?(\d{6})\b/},
+  {cat:'EXECUÇÃO FINANCEIRA', label:'Ordem Bancária',       ia:'resumir', re:/ORDEM BANCARIA|\b20\d{2} ?[O0]B ?\d{6}\b/, key:/\b(20\d{2}) ?[O0]B ?(\d{6})\b/},
+  {cat:'EXECUÇÃO FINANCEIRA', label:'Nota Fiscal',          ia:'resumir', re:/NOTA FISCAL|\bDANFE\b|\bNFS-?E\b/},
+  {cat:'EXECUÇÃO FINANCEIRA', label:'Extrato bancário',     ia:'ler',     re:/EXTRATO (DE |DA )?CONTA|EXTRATO BANCARIO|SALDO ANTERIOR/},
+  {cat:'HABILITAÇÃO',         label:'Consulta CAUC/CADIN',  ia:'ignorar', re:/\bCAUC\b|\bCADIN\b|INADIMPLENCIA/},
+  {cat:'PARECER JURÍDICO',    label:'Parecer Jurídico',     ia:'ler',     re:/PARECER.{0,25}JURIDIC|PROCURADORIA|CONSULTORIA JURIDICA/},
+  {cat:'PARECER TÉCNICO',     label:'Parecer Técnico',      ia:'ler',     re:/PARECER TECNICO|\bPARECER N/},
+  {cat:'NOTA TÉCNICA',        label:'Nota Técnica',         ia:'resumir', re:/NOTA TECNICA|NOTA INFORMATIVA/},
+  {cat:'ATA',                 label:'Ata',                  ia:'resumir', re:/\bATA (DA |DE )?(\d|N|REUNIAO)|\bCTPE\b|COMITE TECNICO/},
+  {cat:'PLANO DE TRABALHO',   label:'Plano de Trabalho',    ia:'ler',     re:/PLANO DE TRABALHO|\bPLANTEQ\b|\bPNQ\b/},
+  {cat:'HABILITAÇÃO',         label:'Declaração',           ia:'ignorar', re:/^.{0,60}DECLARACAO/m},
+  {cat:'EXTRATO DOU',         label:'Extrato DOU',          ia:'ignorar', re:/DIARIO OFICIAL|EXTRATO D[OE] (CONVENIO|TERMO)/},
+  {cat:'PORTARIA',            label:'Portaria',             ia:'ler',     re:/PORTARIA ?(N|SPPE|MTE|\d)/},
+  {cat:'RESOLUÇÃO',           label:'Resolução',            ia:'ler',     re:/RESOLUCAO ?N/},
+  {cat:'RELATÓRIO',           label:'Relatório',            ia:'resumir', re:/RELATORIO.{0,30}EXECUCAO|DEMONSTRATIVO|RELATORIO (DE|FINAL|TECNICO)/},
+  {cat:'AUTUAÇÃO',            label:'Termo de Convênio',    ia:'ler',     re:/TERMO DE CONVENIO|CONVENIO N[O.º°]? ?\d/},
+  {cat:'AUTUAÇÃO',            label:'Termo de Abertura/Encerramento', ia:'ignorar', re:/TERMO DE (ABERTURA|ENCERRAMENTO)/},
+  {cat:'OFÍCIO',              label:'Ofício',               ia:'resumir', re:/\bOF(ICIO)?\.? ?(CIRCULAR ?)?N[O.º°]? ?\d|^.{0,40}\bOFICIO\b/m},
+  {cat:'COMUNICAÇÃO',         label:'Despacho',             ia:'ignorar', re:/\bDESPACHO\b/},
+  {cat:'COMUNICAÇÃO',         label:'Memorando',            ia:'resumir', re:/MEMORANDO/},
+];
+const NUM = /N[º°O.]{0,2} ?([0-9][0-9.\/-]{1,20})/;
+
+function classify(headerText){
+  const N = norm(headerText);
+  for(const r of RULES){
+    if(r.re.test(N)){
+      let num = '';
+      if(r.key){ const m = N.match(r.key); if(m) num = m[1]+(r.label.startsWith('Ordem')?'OB':'NE')+m[2]; }
+      if(!num){ const m = N.match(NUM); if(m) num = m[1].replace(/[.\-\/]+$/,''); }
+      if(r.label==='Termo Aditivo'){ // "PRIMEIRO TERMO ADITIVO" → nº = 1º, 2º...
+        const m = N.match(new RegExp(ORD+' TERMO ADITIVO'));
+        const ords = ['PRIMEIRO','SEGUNDO','TERCEIRO','QUARTO','QUINTO','SEXTO','SETIMO','OITAVO','NONO','DECIMO','DECIMO PRIMEIRO','DECIMO SEGUNDO'];
+        if(m){ let i = ords.indexOf(m[1]); if(m[1]==='UNDECIMO') i=10; if(m[1]==='DUODECIMO') i=11; if(i>=0) num = (i+1)+'º'; }
+      }
+      return {...r, num};
+    }
+  }
+  return null;
+}
+const firstLines = (t, n=5) => t.split(/\n/).map(s=>s.trim()).filter(s=>s.length>=10).slice(0,n);
+
+/* ================== LEITURA DE PÁGINAS ================== */
+let worker = null;
+async function getWorker(){
+  if(!worker){ worker = await Tesseract.createWorker('por'); }
+  return worker;
+}
+// texto do PDF agrupado em linhas por posição vertical; retorna {header, full}
+async function textLayer(page){
+  const vp = page.getViewport({scale:1});
+  const tc = await page.getTextContent();
+  const rows = new Map();
+  for(const it of tc.items){
+    if(!it.str || !it.str.trim()) continue;
+    const y = Math.round(it.transform[5]/3)*3;
+    if(!rows.has(y)) rows.set(y, []);
+    rows.get(y).push({x:it.transform[4], s:it.str});
+  }
+  const ys = [...rows.keys()].sort((a,b)=>b-a);
+  const lines = ys.map(y=>({y, s:rows.get(y).sort((a,b)=>a.x-b.x).map(o=>o.s).join(' ').replace(/\s+/g,' ').trim()}));
+  const full = lines.map(l=>l.s).join('\n');
+  const top = vp.height*0.6; // y cresce para cima: topo 40% = y > 60% da altura
+  const header = lines.filter(l=>l.y>=top).map(l=>l.s).join('\n');
+  return {header, full, chars: full.replace(/\s/g,'').length};
+}
+async function ocrPage(page, fullPage){
+  const scale = 150/72;
+  const vp = page.getViewport({scale});
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  await page.render({canvasContext:ctx, viewport:vp}).promise;
+  const w = await getWorker();
+  let src = canvas;
+  if(!fullPage){ // recorte dos 40% de cima (como na skill), em canvas próprio
+    src = document.createElement('canvas');
+    src.width = canvas.width; src.height = Math.floor(canvas.height*0.4);
+    src.getContext('2d').drawImage(canvas, 0, 0);
+  }
+  const {data} = await w.recognize(src);
+  canvas.width = canvas.height = 0; src.width = src.height = 0; // libera memória
+  let header = data.text;
+  if(fullPage){ // cabeçalho = linhas no topo 40%
+    header = (data.lines||[]).filter(l=>l.bbox.y0 < vp.height*0.4).map(l=>l.text).join('\n') || data.text;
+  }
+  return {header, full: fullPage ? data.text : data.text, conf: data.confidence};
+}
+
+/* ================== PIPELINE ================== */
+const $ = id => document.getElementById(id);
+let files = [], result = null;
+const fmt = n => n.toLocaleString('pt-BR');
+
+function renderFiles(){
+  $('files').innerHTML = files.map(f=>`<div class="file"><span>${esc(f.file.name)}</span><span>${f.pages?fmt(f.pages)+' págs':'…'}</span></div>`).join('');
+  $('goBtn').disabled = !files.length || files.some(f=>!f.pdf);
+}
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function addFiles(list){
+  for(const file of list){
+    if(file.type && file.type!=='application/pdf') continue;
+    const entry = {file, pages:0}; files.push(entry); renderFiles();
+    const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
+    entry.pdf = pdf; entry.pages = pdf.numPages; renderFiles();
+  }
+}
+$('drop').onclick = ()=>$('fileInput').click();
+$('fileInput').onchange = e=>addFiles(e.target.files);
+['dragenter','dragover'].forEach(t=>$('drop').addEventListener(t,e=>{e.preventDefault();$('drop').classList.add('over');}));
+['dragleave','drop'].forEach(t=>$('drop').addEventListener(t,e=>{e.preventDefault();$('drop').classList.remove('over');}));
+$('drop').addEventListener('drop', e=>addFiles(e.dataTransfer.files));
+
+$('goBtn').onclick = run;
+async function run(){
+  $('setup').hidden = true; $('running').hidden = false;
+  const fullOcr = $('optFull').checked;
+  const total = files.reduce((s,f)=>s+f.pages,0);
+  const pages = []; let done=0, nText=0, nOcr=0; const t0 = performance.now();
+  for(let v=0; v<files.length; v++){
+    const f = files[v];
+    for(let p=1; p<=f.pages; p++){
+      $('progLine').textContent = `${f.file.name} · página ${fmt(p)} de ${fmt(f.pages)}`;
+      const page = await f.pdf.getPage(p);
+      let info = await textLayer(page), source='texto', conf=100;
+      if(info.chars < 40){ // página digitalizada
+        if(nOcr===0) $('progLine').textContent += ' · carregando OCR em português…';
+        const o = await ocrPage(page, fullOcr); info = {header:o.header, full:o.full}; source='ocr'; conf=o.conf; nOcr++;
+      } else nText++;
+      page.cleanup();
+      const lines = firstLines(info.header);
+      const hit = classify(lines.join('\n') || info.header);
+      pages.push({vol:v, volName:f.file.name, pIn:p, g:done+1, source, conf:Math.round(conf), lines, hit, full:info.full});
+      done++;
+      const el = (performance.now()-t0)/1000, avg = el/done;
+      $('bar').style.width = (100*done/total)+'%';
+      $('sPct').textContent = Math.round(100*done/total)+'%';
+      $('sText').textContent = fmt(nText); $('sOcr').textContent = fmt(nOcr);
+      $('sAvg').textContent = avg.toFixed(2).replace('.',',');
+      const rest = avg*(total-done); $('sEta').textContent = rest>90? Math.round(rest/60)+' min' : Math.round(rest)+' s';
+      if(done%5===0) await new Promise(r=>setTimeout(r,0));
+    }
+  }
+  const secs = (performance.now()-t0)/1000;
+  result = buildIndex(pages, {secs, nText, nOcr, total});
+  showResult();
+}
+
+function buildIndex(pages, st){
+  const docs = []; let cur = null;
+  for(const pg of pages){
+    const weak = pg.lines.join('').replace(/\W/g,'').length < 15;
+    const newVol = cur && cur.vol !== pg.vol;
+    if(pg.hit){
+      // mesma espécie sem número novo = continuação (ex.: cabeçalho repetido, menção no corpo do texto)
+      const same = cur && !newVol && cur.label===pg.hit.label && (!pg.hit.num || cur.num===pg.hit.num);
+      if(!same){
+        cur = {vol:pg.vol, volName:pg.volName, label:pg.hit.label, cat:pg.hit.cat, ia:pg.hit.ia, num:pg.hit.num,
+               assunto:pg.lines.slice(0,2).join(' · ').slice(0,160), ini:pg.g, fim:pg.g, iniV:pg.pIn, fimV:pg.pIn, revisar:false, weakPages:0};
+        docs.push(cur); continue;
+      }
+    } else if(!cur || newVol){
+      cur = {vol:pg.vol, volName:pg.volName, label:'Sem identificação', cat:'—', ia:'revisar', num:'',
+             assunto:pg.lines.slice(0,2).join(' · ').slice(0,160), ini:pg.g, fim:pg.g, iniV:pg.pIn, fimV:pg.pIn, revisar:true, weakPages:0};
+      docs.push(cur); if(weak) cur.weakPages++; continue;
+    }
+    cur.fim = pg.g; cur.fimV = pg.pIn; if(weak) cur.weakPages++;
+  }
+  docs.forEach((d,i)=>{
+    d.n = i+1;
+    d.titulo = /º$/.test(d.num) ? d.num+' '+d.label : d.label + (d.num ? ' nº '+d.num : '');
+    if(d.weakPages && d.weakPages === (d.fim-d.ini+1) && d.ia!=='revisar'){ d.revisar = true; }
+    if(d.revisar) d.ia = 'revisar';
+  });
+  const revPages = pages.filter(p=>p.lines.join('').replace(/\W/g,'').length < 15).length;
+  return {pages, docs, st:{...st, revPages, nDocs:docs.length, nRev:docs.filter(d=>d.revisar).length}};
+}
+
+const IA_TXT = {ler:'ler na íntegra', resumir:'resumir', ignorar:'ignorar', revisar:'revisar'};
+const multiVol = () => files.length > 1;
+const pgRange = d => (d.ini===d.fim? fmt(d.ini) : fmt(d.ini)+'–'+fmt(d.fim)) + (multiVol()? ` (vol. ${d.vol+1}: ${d.iniV}–${d.fimV})` : '');
+
+function showResult(){
+  const {docs, st} = result;
+  $('running').hidden = true; $('result').hidden = false;
+  $('doneTitle').textContent = `${fmt(st.total)} páginas mapeadas em ${st.secs<90? Math.round(st.secs)+' s' : (st.secs/60).toFixed(1).replace('.',',')+' min'}`;
+  $('doneStats').innerHTML = `<span><b>${fmt(st.nDocs)}</b> documentos</span><span><b>${fmt(st.nRev)}</b> para revisar</span><span><b>${fmt(st.nText)}</b> páginas com texto</span><span><b>${fmt(st.nOcr)}</b> com OCR</span><span><b>${(st.secs/st.total).toFixed(2).replace('.',',')}</b> s/pág</span><span><b>${fmt(st.revPages)}</b> páginas ilegíveis ou vazias</span>`;
+  $('tbody').innerHTML = docs.map(d=>`<tr><td class="n">${d.n}</td><td>${esc(d.titulo)}</td><td>${esc(d.assunto)}</td><td class="n">${pgRange(d)}</td><td>${esc(d.cat)}</td><td><span class="act ${d.ia}">${IA_TXT[d.ia]}</span></td></tr>`).join('');
+  $('mdPreview').textContent = buildMd();
+  $('rawPreview').textContent = result.pages.map(p=>`[${p.g}] ${p.source}${p.source==='ocr'?' '+p.conf+'%':''} ${p.hit? '→ '+p.hit.label+(p.hit.num?' '+p.hit.num:'') : ''}\n   ${p.lines.join(' | ')}`).join('\n');
+}
+
+function procName(){ return $('optProc').value.trim() || files[0].file.name.replace(/\.pdf$/i,''); }
+function buildMd(){
+  const {docs, st} = result;
+  const L = [];
+  L.push(`# Mapa do documento — ${procName()}`, '');
+  L.push(`Volumes: ${files.map((f,i)=>`${i+1}) ${f.file.name} (${f.pages} págs)`).join('; ')}. Total: ${st.total} páginas. Gerado em ${new Date().toLocaleString('pt-BR')}.`, '');
+  L.push('## Como usar (instruções para a IA)', '');
+  L.push('- Este índice lista os documentos do processo e as páginas onde estão.');
+  L.push('- "ler na íntegra": leia o texto completo dessas páginas antes de responder.');
+  L.push('- "resumir": basta o essencial (datas, valores, partes, decisão).');
+  L.push('- "ignorar": documento de rotina; consulte só se a pergunta exigir.');
+  L.push('- "revisar": não identificado automaticamente; abra as páginas se forem relevantes.');
+  L.push('- O texto de cada página está em `paginas/NNNN.txt` (numeração global).', '');
+  L.push('## Índice', '');
+  L.push('| Nº | Documento | Páginas | Categoria | Ação |', '|---|---|---|---|---|');
+  docs.forEach(d=>L.push(`| ${d.n} | ${d.titulo.replace(/\|/g,'/')} | ${pgRange(d)} | ${d.cat} | ${IA_TXT[d.ia]} |`));
+  return L.join('\n');
+}
+function buildXlsx(){
+  const {docs} = result;
+  const title = `ÍNDICE — ${procName()}`;
+  const rows = [[title],[ 'Nº','DOCUMENTO / TÍTULO','ASSUNTO / CABEÇALHO','PÁG. INICIAL','PÁG. FINAL','CATEGORIA','PARA A IA', ...(multiVol()?['VOLUME','PÁG. NO VOLUME']:[]) ]];
+  docs.forEach(d=>rows.push([d.n, d.titulo, d.assunto, d.ini, d.fim, d.cat, IA_TXT[d.ia], ...(multiVol()?[d.vol+1, `${d.iniV}–${d.fimV}`]:[])]));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:rows[1].length-1}}];
+  ws['!cols'] = [{wch:5},{wch:45},{wch:70},{wch:9},{wch:9},{wch:22},{wch:16},{wch:9},{wch:14}];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Índice');
+  return XLSX.write(wb, {bookType:'xlsx', type:'array'});
+}
+function save(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 1000);
+}
+const slug = () => procName().replace(/[^\w.-]+/g,'-').slice(0,60);
+$('dlMd').onclick = ()=>save(new Blob([buildMd()],{type:'text/markdown'}), 'indice.md');
+$('dlXlsx').onclick = ()=>save(new Blob([buildXlsx()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'indice.xlsx');
+$('dlZip').onclick = async ()=>{
+  const zip = new JSZip(); const root = zip.folder(slug());
+  root.file('indice.md', buildMd()); root.file('indice.xlsx', buildXlsx());
+  const pf = root.folder('paginas');
+  result.pages.forEach(p=>pf.file(String(p.g).padStart(4,'0')+'.txt', `[${p.volName} · pág. ${p.pIn} · ${p.source}]\n\n${p.full||''}`));
+  save(await zip.generateAsync({type:'blob'}), slug()+'.zip');
+};
+$('again').onclick = ()=>location.reload();
+</script>
+</body>
+</html>
